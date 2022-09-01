@@ -1,0 +1,170 @@
+---
+title: "Linear Regression Exercises"
+author: "JG"
+date: "9/1/22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Get the pacakges
+```{r,include=FALSE}
+packageList <- c("knitr","ggplot2","tidyverse","tableone","readr",
+                 "survival","gtsummary","faraway","MASS","leaps","heatmap3")
+for(package in packageList){
+  if(!require(package,character.only = TRUE)){
+    install.packages(package, repos = "http://cran.rstudio.com");require(package,character.only = TRUE);}
+    }
+```
+
+# The R package “faraway” has the dataset “pima”. Install and load the R package “faraway”. Extract pima data with “data(pima)” command.
+
+Variables are:
+
+pregnant (# of times)
+glucose (2 hours post tolerance test)
+age (years)
+diastolic (blood pressure)
+tricepts (skin fold thickness)
+insulin (2-hour insulin)
+bmi
+diabetes (pedigree-a number related to family history)
+test (diabetes signs +/-)
+
+```{r}
+data("pima")
+
+# was originally imputed with mean for full range of triceps however as many zero
+#values, used in data set as na's, we change it as below to select the complent set
+# of non-zero values rather than this:
+#pima$triceps[0==pima$triceps] <- mean(pima$triceps,na.rm=TRUE)
+
+pima$triceps[0==pima$triceps] <- mean(pima$triceps[!0==pima$triceps] ,na.rm=TRUE)
+pima$diastolic[0==pima$diastolic] <- mean(pima$diastolic,na.rm=TRUE)
+pima$bmi[0==pima$bmi] <- mean(pima$bmi,na.rm=TRUE)
+
+
+```
+
+
+1. Calculate summary of variables by "test" Perform Chi-squared test.
+2. How many total subjects are there?
+3. How many subjects have diabetes?
+4. Which variables are NOT associated with diabetes test?
+
+```{r}
+
+tbl_summary(pima,by=test) %>%  add_p(all_categorical() ~ "chisq.test")
+
+```
+
+
+	
+5. Plot the distribution of diastolic. Describe distribution.
+
+```{r}
+ggplot(pima,aes(x=diastolic))+geom_histogram()
+
+```
+
+6. Which variables are correlated with diastolic blood pressure?
+
+```{r}
+#Pearson's product-moment correlation.  Could also be written as 
+#cor.test(pima$diastolic, pima$age)
+with(pima,cor.test(diastolic,age))
+
+
+
+```
+
+
+# Here is an example stepwise variable selection with AIC criterion.
+
+7. Perform stepwise selection using the stepAIC function in the MASS R package. Use all variables as predictors!
+8. Which model was selected as the best fit?
+
+```{r}
+lmout <- lm(diastolic~age+diabetes+triceps+bmi,data=pima)
+#lmout is complicated object with the whole data set pima as well as the model made with lm and various other aspects of it statistically.  Below stepAIC function takes lmout and uses bidirectional approach to variable selection to optimize model.  AIC is the Aikake Information Criteria one of several approaches to this process.  Lower AIC value is better.
+stepAIC(lmout,direction="both")
+
+#try it now without the triceps variable since it seems from above that it does not help
+lmout2 <- lm(diastolic~age+diabetes+bmi,data=pima)
+#to view it try:
+lmout2 %>% tbl_regression()
+```
+
+
+9. Perform all possible regressions using regsubsets function in the leaps R package. Use all variables as predictors!
+10. What model has the best BIC (Bayesian Information Criterion)?
+
+
+```{r}
+
+#since we think there is a curve we add a quadratic term to the model
+pima$bmi_sq <- scale(pima$bmi, center = TRUE)^2
+
+leaps<-regsubsets(diastolic~age+diabetes+triceps+bmi+ bmi_sq,data=pima,nbest=10)
+# view results 
+summary(leaps)
+# plot a table of models showing variables in each model.
+# models are ordered by the selection statistic.
+plot(leaps,scale="r2")
+plot(leaps,scale="bic")
+
+# The Bayesian Information Criterion, or BIC for short, is a method for scoring and selecting a model.
+# 
+# It is named for the field of study from which it was derived: Bayesian probability and inference. Like AIC, it is appropriate for models fit under the maximum likelihood estimation framework. For additional information see:
+# https://machinelearningmastery.com/probabilistic-model-selection-measures/
+
+```
+
+11. Fit the model selected by BIC. What are the significant predictors?
+
+```{r}
+fitBIC <- lm(formula = diastolic ~ age + bmi, data = pima)
+
+fitBIC %>% gtsummary::tbl_regression()
+
+
+```
+12. Look for “influential” observations whose removal effects the fit.
+We can compute the Cook’s distance using the following commands.
+
+13. How is this an extreme observation?
+
+```{r}
+# a measure of outlies, one of these is cooks.distance. Asking how influential is that observation? What if we took it out, does it change the parameter slopes?
+cook <- cooks.distance(fitBIC)
+plot(sort(cook), ylab="Cooks distances")
+#we see in the plot that there are one or two that have a large influence and we can drill down to that observation as below by selecting the max cook 
+print(pima[cook==max(cook),],)
+
+
+```
+
+
+14. What does the plot below imply about diabetes risk and bmi?
+
+```{r}
+ggplot(pima,aes(bmi,test))+geom_point()+geom_smooth()
+#add from canvas the post on multiple diabetes plot
+#loess [auto tuning function for your model.  "local estimation" nearest neighbor like approach ~ weighted nearest neighbor]
+```
+
+
+15. According the the stepwise AIC model below, which variables best predict diabetes? Note, this is logistic regression.
+
+```{r}
+lmout <- glm(test~age+diastolic+pregnant+triceps+bmi,data=pima,family=binomial)
+stepAIC(lmout,direction="both")
+```
+
+
+
+
+
+

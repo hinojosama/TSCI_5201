@@ -1,0 +1,189 @@
+---
+title: "Assignment 1"
+author: "Marco Hinojosa"
+date: '2022-08-24'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+
+packageList <- c("knitr","Publish","ggplot2","tidyverse","readr", "survival","gtsummary","faraway","MASS","leaps","heatmap3",
+    "ISLR2","glmnet")
+for(package in packageList){
+  if(!require(package,character.only = TRUE)){
+    install.packages(package);require(package,character.only = TRUE);}
+    }
+library(ISLR2)
+library (dplyr)
+library(gtsummary)
+
+```
+# Answer Chapter 2, question 9 in ISLR
+
+# Load that Auto data
+
+```{r}
+data("Auto")
+```
+
+
+```{r}
+plot(Auto)
+
+pdf("auto.pdf")
+plot(Auto)
+dev.off()
+
+```
+
+#### 9 
+**a) Which of the predictors are quantitative, and which are qualitative?**
+*qualitative: name*
+*quantitative: mpg, cylinders, displacement, horsepower, weight, acceleration, year, and origin*
+
+b) What is the range of each quantitative predictor? You can answer
+this using the range() function.
+
+```{r}
+# library(dplyr)
+# data("Auto")
+summary(Auto)
+# r_min <- Auto %>%
+#   select(mpg:year) %>%
+#   summarise_each(min)
+# r_max <- Auto %>%
+#   select(mpg:year) %>%
+#   summarise_each(max)
+# Auto_ranges <- bind_rows(r_min, r_max)
+# View(Auto_ranges)
+
+```
+#9 c) What is the mean and standard deviation of each quantitative predictor?
+
+```{r}
+
+library(ISLR2)
+library (dplyr)
+library(gtsummary)
+data("Auto")
+q9a <- Auto %>%
+  select(Auto, mpg:year) %>%
+  tbl_summary(type=list(cylinders~"continuous"), statistic = list(all_continuous() ~ "{mean},{sd}"))
+print(q9a)
+
+```
+
+9 d) 
+Now remove the 10th through 85th observations. What is the
+range, mean, and standard deviation of each predictor in the
+subset of the data that remains?
+
+(e) Using the full data set, investigate the predictors graphically,
+using scatterplots or other tools of your choice. Create some plots
+highlighting the relationships among the predictors. Comment
+on your findings.
+
+
+(f) Suppose that we wish to predict gas mileage (mpg) on the basis
+of the other variables. Do your plots suggest that any of the
+other variables might be useful in predicting mpg? Justify your
+answer.
+
+ # Below is just FYI:
+
+```{r}
+
+# Make a 'Make' variable by removing first part of name
+
+Auto$make <- gsub(" .*","",Auto$name)
+
+table(Auto$make) %>% sort()
+
+Auto$Ford01 <- ifelse(Auto$make=='ford',1,0)
+
+ggplot(Auto,aes(mpg,Ford01))+geom_point()+geom_smooth()
+
+```
+# Below is just FYI: how to use LASSO with real example
+# Use Lasso to predict Ford
+
+```{r}
+
+Xmatrix <- as.matrix(subset(Auto,select=c("mpg","cylinders",
+                                      "horsepower","weight","acceleration","year")))
+#the function glmnet is the lasso function and the cv refers to ...test set data?
+lassoFit <- cv.glmnet(x=Xmatrix,
+                      y=Auto$Ford01,
+              family="binomial",type.measure="auc")
+
+plot(lassoFit)
+
+glm(Auto$Ford01~Xmatrix,family='binomial') %>% summary()
+
+```
+
+
+
+# Exercise 10
+
+(a) To begin, load in the Boston data set. The Boston data set is
+part of the ISLR2 library.
+> library(ISLR2)
+Now the data set is contained in the object Boston.
+> Boston
+Read about the data set:
+> ?Boston
+How many rows are in this data set? How many columns? What
+do the rows and columns represent?
+
+(b) Make some pairwise scatterplots of the predictors (columns) in
+this data set. Describe your findings.
+
+(c) Are any of the predictors associated with per capita crime rate?
+If so, explain the relationship.
+
+(d) Do any of the census tracts of Boston appear to have particularly
+high crime rates? Tax rates? Pupil-teacher ratios? Comment on
+the range of each predictor.
+
+(e) How many of the census tracts in this data set bound the Charles
+river?
+
+(f) What is the median pupil-teacher ratio among the towns in this
+data set?
+
+(g) Which census tract of Boston has lowest median value of owneroccupied
+homes? What are the values of the other predictors
+for that census tract, and how do those values compare to the
+overall ranges for those predictors? Comment on your findings.
+
+(h) In this data set, how many of the census tracts average more
+than seven rooms per dwelling? More than eight rooms per
+dwelling? Comment on the census tracts that average more than
+eight rooms per dwelling.
+
+
+# Chapter 3
+
+15A This problem involves the Boston data set, which we saw in the lab for this chapter. We will now try to predict lstat using the other variables in this data set. In other words, lstat is the response, and the other variables are the predictors.
+
+(a)	For each predictor, fit a simple linear regression model to predict the response. Describe your results. In which of the models is there a statistically significant association between the predictor and the response? Create some plots to back up your assertions.
+
+(b)	Fit a multiple regression model to predict the response using all the predictors. Describe your results. For which predictors can we reject the null hypothesis H0: b_j = 0?
+
+(c)	How do your results from (a) compare to your results from (b)?
+
+Create a plot displaying the univariate regression coefficients from (a) on the x-axis, and the multiple regression coefficients from (b) on the y-axis. That is, each predictor is displayed as a single point in the plot. Its coefficient in a simple linear regression
+model is shown on the x-axis, and its coefficient estimate in the multiple linear regression model is shown on the y-axis.
+
+
+(d)	Is there evidence of non-linear association between any of the predictors and the response? To answer this question, for each predictor rm, age and medv, fit a model of the form y=XB + e.
+
+
+
