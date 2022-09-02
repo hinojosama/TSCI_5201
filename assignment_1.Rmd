@@ -26,56 +26,60 @@ library(gtsummary)
 ```
 # Answer Chapter 2, question 9 in ISLR
 
-# Load that Auto data
+**Load Auto data**
 
 ```{r}
 data("Auto")
 ```
 
-
-```{r}
-plot(Auto)
-
-pdf("auto.pdf")
-plot(Auto)
-dev.off()
-
-```
-
 #### 9 
-**a) Which of the predictors are quantitative, and which are qualitative?**
-*qualitative: name*
-*quantitative: mpg, cylinders, displacement, horsepower, weight, acceleration, year, and origin*
+**a) Which of the predictors are quantitative and which are qualitative?**
+*qualitative: origin and name*
+*quantitative: mpg, cylinders, displacement, horsepower, weight, acceleration, year*
 
-b) What is the range of each quantitative predictor? You can answer
-this using the range() function.
+**b) What is the range of each quantitative predictor?**
 
-```{r}
-# library(dplyr)
-# data("Auto")
+```{r echo=TRUE}
+#summary function is quick way to see the range (min and max) as below. 
 summary(Auto)
-# r_min <- Auto %>%
-#   select(mpg:year) %>%
-#   summarise_each(min)
-# r_max <- Auto %>%
-#   select(mpg:year) %>%
-#   summarise_each(max)
-# Auto_ranges <- bind_rows(r_min, r_max)
-# View(Auto_ranges)
+
+# alternatively to just get the min and max in a table could do something like:
+ 
+# This creates a dataframe from the Auto dataframe, uses the select function to 
+# specify which columns to keep, then uses the summarise function. Without the 
+# across() function summarise would apply the 'min' function to the whole dataframe.
+#  By using the across() function it tells summarise to apply the function to each
+# column.  
+
+{
+r_min <- Auto %>%
+    summarise(across(mpg:year, min))
+r_max <- Auto %>%
+    summarise(across(mpg:year, max))
+Auto_ranges <- bind_rows(r_min, r_max) %>%
+    mutate(range = c("minimum", "maximum"))
+print(Auto_ranges)
+}
 
 ```
 #9 c) What is the mean and standard deviation of each quantitative predictor?
 
 ```{r}
+#There is a conflict when using both dplyr using both MASS packages.
+#specify dplyr::select when both are loaded to resolve the conflict.
+# take the Auto dataframe and select only the columns from mpg through year
+# then pass this to the tbl_summary function. The 'type' argument specifies 
+# the variable type (ex continuous, categorical, etc).  The function will default 
+# to an appropriate type however here we wish to override the default regarding
+#  our data for cylinders to make sure it is classified as continuous. The next
+# argument in the tbl_summary function is 'statistic' and we ask it to find the 
+# mean and standard deviations for all continuous variables.
 
-library(ISLR2)
-library (dplyr)
-library(gtsummary)
-data("Auto")
-q9a <- Auto %>%
-  select(Auto, mpg:year) %>%
-  tbl_summary(type=list(cylinders~"continuous"), statistic = list(all_continuous() ~ "{mean},{sd}"))
-print(q9a)
+ Auto %>%
+  dplyr::select(mpg:year) %>%
+  tbl_summary(type=list(cylinders~"continuous"),
+              statistic = list(all_continuous() ~ "{mean},{sd}"))
+
 
 ```
 

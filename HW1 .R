@@ -1,6 +1,6 @@
-title: "Assignment 1"
-author: "Marco Hinojosa"
-date: '2022-08-24'
+# title: "Assignment 1"
+# author: "Marco Hinojosa"
+# date: '2022-08-24'
 
 #Setup----
 library(ISLR2)
@@ -14,29 +14,37 @@ data("Auto")
 #Problem 9 a-b----
 
 # a) Which of the predictors are quantitative, and which are qualitative?
-#   qualitative: name
-#   quantitative: mpg, cylinders, displacement, horsepower, weight, acceleration, year, and origin
+#   qualitative: name, origin
+#   quantitative: mpg, cylinders, displacement, horsepower, weight, acceleration, year
 #
 # b) What is the range of each quantitative predictor? You can answer
 #   this using the range() function.
+head(Auto)
+r_min <- Auto
+
 
 r_min <- Auto %>%
-  select(!c(name, origin)) %>%
-  summarise_each(min)
+  summarise(across(mpg:year, min))
 r_max <- Auto %>%
-  select(!c(name, origin)) %>%
-  summarise_each(max)
-Auto_ranges <- bind_rows(r_min, r_max)
-View(Auto_ranges)
+  summarise(across(mpg:year, max))
+Auto_ranges <- bind_rows(r_min, r_max) %>%
+  mutate(range = c("minimum", "maximum"))
+print(Auto_ranges)
 
 #Problem 9 c----
 
 # c) What is the mean and standard deviation of each quantitative predictor?
 
 q9a <- Auto %>%
-  select(mpg:year) %>%
-  tbl_summary(type=list(cylinders~"continuous"), statistic = list(all_continuous() ~ "{mean},{sd}"))
+  dplyr::select(mpg:year) %>%
+  tbl_summary(type=list(cylinders~"continuous"),
+              statistic = list(all_continuous() ~ "{mean},{sd}"))
 print(q9a)
+
+Auto %>%
+  dplyr::select(mpg:year) %>%
+  tbl_summary(type=list(cylinders~"continuous"),
+              statistic = list(all_continuous() ~ "{mean},{sd}"))
 
 #Problem 9 d----
 

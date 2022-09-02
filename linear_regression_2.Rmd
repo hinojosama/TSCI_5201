@@ -150,9 +150,11 @@ print(pima[cook==max(cook),],)
 14. What does the plot below imply about diabetes risk and bmi?
 
 ```{r}
-ggplot(pima,aes(bmi,test))+geom_point()+geom_smooth()
-#add from canvas the post on multiple diabetes plot
-#loess [auto tuning function for your model.  "local estimation" nearest neighbor like approach ~ weighted nearest neighbor]
+# originally plotted as ggplot(pima,aes(bmi,test))+geom_point()+geom_smooth(). Expanded
+#in class as follows:
+ggplot(pima,aes(bmi,test))+geom_point()+geom_smooth(method='glm',method.args = list(family = "binomial"))+geom_smooth(color='red')
+
+#of note in the geom_smooth function of ggplot the argument 'method' is a smoothing method to generate the curve from the data.  The default is NULL which automatically chooses based upon the # of observations.  If < 1000 obs defaults to 'loess'.  loess (local polynomial regression fitting) is an "auto tuning" function for your model.Think of it as "local estimation" or a nearest neighbor like approach that is weighted to favor nearest neighbors].  If obs > 1000 'method' will try 'gam'(generalized additive model). In the code above 'glm' (generalized linear model) was specified. The rationale for chosing glm in this case was not totally clear to me in class however it does seem to be appropriate for binomial and quasi-binomial factors per its documentation which applies to this example.
 ```
 
 
