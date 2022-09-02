@@ -22,6 +22,7 @@ for(package in packageList){
 library(ISLR2)
 library (dplyr)
 library(gtsummary)
+library(ggplot2)
 
 ```
 # Answer Chapter 2, question 9 in ISLR
@@ -32,12 +33,15 @@ library(gtsummary)
 data("Auto")
 ```
 
-#### 9 
+## Question 9 
 **a) Which of the predictors are quantitative and which are qualitative?**
-*qualitative: origin and name*
-*quantitative: mpg, cylinders, displacement, horsepower, weight, acceleration, year*
 
-**b) What is the range of each quantitative predictor?**
+* qualitative: origin and name
+* quantitative: mpg, cylinders, displacement, horsepower, weight, acceleration, year  
+
+***
+
+**b) What is the range of each quantitative predictor?**  
 
 ```{r echo=TRUE}
 #summary function is quick way to see the range (min and max) as below. 
@@ -45,11 +49,12 @@ summary(Auto)
 
 # alternatively to just get the min and max in a table could do something like:
  
-# This creates a dataframe from the Auto dataframe, uses the select function to 
-# specify which columns to keep, then uses the summarise function. Without the 
+# This creates a dataframe called r_min from the Auto dataframe, then uses the summarise function. Without the 
 # across() function summarise would apply the 'min' function to the whole dataframe.
 #  By using the across() function it tells summarise to apply the function to each
-# column.  
+# column. Next repeat the process creating r_max.  Then create Auto_ranges dataframe
+# putting together the two(r_min and r_max) using bind_rows(). Finally add a column 
+# labeled 'range' using mutate() and filling in the values with a simple vector c().
 
 {
 r_min <- Auto %>%
@@ -62,11 +67,13 @@ print(Auto_ranges)
 }
 
 ```
-#9 c) What is the mean and standard deviation of each quantitative predictor?
+***
+**c) What is the mean and standard deviation of each quantitative predictor?**  
 
 ```{r}
-#There is a conflict when using both dplyr using both MASS packages.
+#There is a conflict when using both dplyr and MASS packages.
 #specify dplyr::select when both are loaded to resolve the conflict.
+
 # take the Auto dataframe and select only the columns from mpg through year
 # then pass this to the tbl_summary function. The 'type' argument specifies 
 # the variable type (ex continuous, categorical, etc).  The function will default 
@@ -82,24 +89,62 @@ print(Auto_ranges)
 
 
 ```
+***
+**d) Now remove the 10th through 85th observations. What is the**
+**range, mean, and standard deviation of each predictor in the**
+**subset of the data that remains?**  
 
-9 d) 
-Now remove the 10th through 85th observations. What is the
-range, mean, and standard deviation of each predictor in the
-subset of the data that remains?
+```{r}
+# Select() only the columns of interest. Slice() only the rows of interest. Use
+# tbl_summary function as above adding the min and max functions to be calculated
+# as well. 
+Auto %>%
+    dplyr::select(mpg:year) %>%
+    slice(c(1:9, 86:392)) %>% 
+    tbl_summary(type=list(cylinders~"continuous"),
+                statistic = list(all_continuous() ~ "{min}, {max},{mean},{sd}"))
 
-(e) Using the full data set, investigate the predictors graphically,
-using scatterplots or other tools of your choice. Create some plots
-highlighting the relationships among the predictors. Comment
-on your findings.
+```
+
+***
+**(e) Using the full data set, investigate the predictors graphically,**
+**using scatterplots or other tools of your choice. Create some plots**
+**highlighting the relationships among the predictors. Comment**
+**on your findings.**  
 
 
-(f) Suppose that we wish to predict gas mileage (mpg) on the basis
-of the other variables. Do your plots suggest that any of the
-other variables might be useful in predicting mpg? Justify your
-answer.
+```{r}
 
- # Below is just FYI:
+# mpg vs weight/origin/cylinder/acceleration/year
+# acceleration vs cylinder/displacement/weight/origin
+
+ggplot(data = Auto, aes(x=year, y=mpg, color = cylinders)) + geom_point()  + facet_wrap(vars(origin)) + labs(title = "mpg by year", subtitle = "comparing country of origin")
+
+ggplot(data = Auto, aes(x=year, y=acceleration, color = weight)) + geom_point()  + facet_grid(cols=vars(cylinders), rows = vars(origin)) + labs(title = "acceleration by year", subtitle = "comparing cylinders and country of origin")
+
+ggplot(data = Auto, aes(x=weight, y=acceleration, color = displacement)) + geom_point() + labs(title = "acceleration by weight")
+
+ggplot(data = Auto, aes(x=horsepower, y=acceleration, color = mpg)) + geom_point() + labs(title = "acceleration by horsepower")
+
+ggplot(data = Auto, aes(x=weight, y=horsepower, color = displacement)) + geom_point() + facet_wrap(vars(cylinders)) + labs(title = "horsepower by weight", subtitle = "comparing by cylinders")
+
+```
+
+***
+**(f) Suppose that we wish to predict gas mileage (mpg) on the basis**
+**of the other variables. Do your plots suggest that any of the**
+**other variables might be useful in predicting mpg? Justify your**
+**answer.**  
+
+* Weight, cylinders, displacement, horsepower all seem inversely related to mpg. 
+* year, acceleration, and perhaps origin appear to be directly related to mpg.
+
+```{r}
+ggplot(data = Auto, aes(x=acceleration, y=mpg, color = year)) + geom_point() + facet_wrap(vars(origin)) + labs(title = "mpg by acceleration", subtitle = "comparing country of origin")
+```
+
+
+**Just FYI:**  
 
 ```{r}
 
@@ -114,7 +159,8 @@ Auto$Ford01 <- ifelse(Auto$make=='ford',1,0)
 ggplot(Auto,aes(mpg,Ford01))+geom_point()+geom_smooth()
 
 ```
-# Below is just FYI: how to use LASSO with real example
+***
+# just FYI: how to use LASSO with real example
 # Use Lasso to predict Ford
 
 ```{r}
@@ -132,8 +178,7 @@ glm(Auto$Ford01~Xmatrix,family='binomial') %>% summary()
 
 ```
 
-
-
+***
 # Exercise 10
 
 (a) To begin, load in the Boston data set. The Boston data set is
@@ -146,33 +191,40 @@ Read about the data set:
 How many rows are in this data set? How many columns? What
 do the rows and columns represent?
 
+***
 (b) Make some pairwise scatterplots of the predictors (columns) in
-this data set. Describe your findings.
+this data set. Describe your findings.  
 
+***
 (c) Are any of the predictors associated with per capita crime rate?
-If so, explain the relationship.
+If so, explain the relationship.  
 
+***
 (d) Do any of the census tracts of Boston appear to have particularly
 high crime rates? Tax rates? Pupil-teacher ratios? Comment on
 the range of each predictor.
 
+***
 (e) How many of the census tracts in this data set bound the Charles
 river?
 
+***
 (f) What is the median pupil-teacher ratio among the towns in this
 data set?
 
+***
 (g) Which census tract of Boston has lowest median value of owneroccupied
 homes? What are the values of the other predictors
 for that census tract, and how do those values compare to the
 overall ranges for those predictors? Comment on your findings.
 
+***
 (h) In this data set, how many of the census tracts average more
 than seven rooms per dwelling? More than eight rooms per
 dwelling? Comment on the census tracts that average more than
 eight rooms per dwelling.
 
-
+***
 # Chapter 3
 
 15A This problem involves the Boston data set, which we saw in the lab for this chapter. We will now try to predict lstat using the other variables in this data set. In other words, lstat is the response, and the other variables are the predictors.
