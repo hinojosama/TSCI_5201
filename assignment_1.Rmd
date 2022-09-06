@@ -20,7 +20,8 @@ for(package in packageList){
     install.packages(package);require(package,character.only = TRUE);}
     }
 library(ISLR2)
-library (dplyr)
+library(dplyr)
+library(stats)
 library(gtsummary)
 library(ggplot2)
 
@@ -201,9 +202,7 @@ glm(Auto$Ford01~Xmatrix,family='binomial') %>% summary()
 
 (a) To begin, load in the Boston data set. The Boston data set is
 part of the ISLR2 library.
-> library(ISLR2)
-Now the data set is contained in the object Boston.
-> Boston
+
 Read about the data set:
 > ?Boston
 How many rows are in this data set? How many columns? What
@@ -234,7 +233,6 @@ medv    | median value of owner-occupied homes in $1000s.
 this data set. Describe your findings.  
 
 ```{r}
-library(ISLR2)
 
 data("Boston")
 plot(Boston)
@@ -317,27 +315,77 @@ print(plus8_rm)
 
 15A This problem involves the Boston data set, which we saw in the lab for this chapter. We will now try to predict lstat using the other variables in this data set. In other words, lstat is the response, and the other variables are the predictors.
 
-
-```{r}
-#for each of these variables create a model using lm polynomial function,  
-# cnl <- colnames(Boston)
-# cnl <- cnl[!cnl %in% c("lstat")]
-# for (yy in cnl) {lm(lstat ~ yy, data = Boston, raw = TRUE)}
-
-# not working currently.  lm senses variable yy is different length than lstat.  Have verified no NAs.  all 506 length.  have tried as.character(yy), Boston$yy, paste0("Boston$", yy)
-```
-
 (a)	For each predictor, fit a simple linear regression model to predict the response. Describe your results. In which of the models is there a statistically significant association between the predictor and the response? Create some plots to back up your assertions.
 
+
+
+```{r}
+# for each of these variables create a model using lm polynomial function,  
+# use the apply function to automate this to each variable.  Apply() has first argument
+# as data, second argument "MARGIN" set here to '2' specifies to apply the function by column (can be 1 or 2 or both c1, 2).  The last argument is a function.  It will take each column and apply the function
+# which in this case is a linear model lm().  lm() takes first argument model (here is y ~ x or response variable ~ predictor variable). 
+
+lm_bost_df <- apply(Boston, 2, function(yy) summary(lm(lstat ~ yy, data = Boston)))
+print(lm_bost_df)
+```
+
+^ All appear to have p values < 0.05 apart from the 'chas' variable or bordering the Charles River.
+
+```{r}
+sig_cols <- colnames(Boston)
+sig_cols <- sig_cols[!sig_cols %in% c("lstat", "chas")]
+Bost_abr <- Boston %>% dplyr::select(c(crim:indus, nox:medv))
+apply(Bost_abr, 2, function(ii) {ggplot(data = Boston, aes(x=ii, y=lstat)) + geom_point() + labs(title = paste0("lstat and ", ii))})
+
+# this bit of code is still a work in progress, the lable is not coming through properly 
+```
+
+
 (b)	Fit a multiple regression model to predict the response using all the predictors. Describe your results. For which predictors can we reject the null hypothesis H0: b_j = 0?
+*all except chas and nox.*
+
+```{r}
+#multiple linear regression achieved by using the shorthand 'lstat~.' meaning y ~ all predictors. 
+lm_multi <- lm(lstat~.,data=Boston)
+summary(lm_multi)
+```
+
+
 
 (c)	How do your results from (a) compare to your results from (b)?
+
+*crim, nox, and tax were previously significant, now have p >.05*
 
 Create a plot displaying the univariate regression coefficients from (a) on the x-axis, and the multiple regression coefficients from (b) on the y-axis. That is, each predictor is displayed as a single point in the plot. Its coefficient in a simple linear regression
 model is shown on the x-axis, and its coefficient estimate in the multiple linear regression model is shown on the y-axis.
 
+```{r}
+coef_multi <- data.frame(coef(lm_multi), check.rows = T, check.names = T, stringsAsFactors = T) 
+coef_multi <- dplyr::filter(coef_multi, coef.lm_multi. < 35)
+coef_multi <- dplyr::mutate(coef_multi, coef.lm_multi. = round(coef.lm_multi., digits = 4))
+
+coef_simple <- data.frame(apply(Boston, 2, function(vv) coef(lm(lstat ~ vv, data = Boston))))
+coef_simple <- data.frame(t(coef_simple))
+coef_simple <- dplyr::select(coef_simple, vv)
+coef_simple <- dplyr::mutate(coef_simple, vv = round(vv, digits = 4))
+coef_simple <- dplyr::filter(coef_simple, vv != 1.0000)
+coef_df <- bind_cols(coef_multi, coef_simple)
+
+ggplot(data = coef_df, aes(x=vv, y=coef.lm_multi.)) + geom_point()+ labs(title = "simple vs multivariate linear regression coefficients", y="multivariate coefficients", x="simple coefficients") 
+
+
+
+```
+
 
 (d)	Is there evidence of non-linear association between any of the predictors and the response? To answer this question, for each predictor rm, age and medv, fit a model of the form y=XB + e.
 
+```{r}
+summary(lm(lstat~poly(rm + exp(1)), data = Boston))
+summary(lm(lstat~poly(rm, 2), data = Boston))
+
+
+
+```
 
 
