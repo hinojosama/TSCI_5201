@@ -378,13 +378,29 @@ ggplot(data = coef_df, aes(x=vv, y=coef.lm_multi.)) + geom_point()+ labs(title =
 ```
 
 
-(d)	Is there evidence of non-linear association between any of the predictors and the response? To answer this question, for each predictor rm, age and medv, fit a model of the form y=XB + e.
+(d)	Is there evidence of non-linear association between any of the predictors and the response? To answer this question, for each predictor rm, age and medv, fit a model of the form y=XB + e. 
+
+* Yes. Each of them have F values >1 (though weak/modest for rm and age) and pvalues less than .05. *
 
 ```{r}
+# use form as specified above.  
 summary(lm(lstat~poly(rm + exp(1)), data = Boston))
+# use orthoginal polynomial function mentioned in chapter 7
 summary(lm(lstat~poly(rm, 2), data = Boston))
 
+# chapter 3 lab uses the I function to do non-linear transformation
+rm_lm_fit1 <- lm(lstat~rm, data = Boston)
+rm_lm_fit2 <- lm(lstat~rm + I(rm^2), data = Boston)
+# and anova comparison of the model without and with the non-linear component
+anova(rm_lm_fit1, rm_lm_fit2)
 
+age_lm_fit1 <- lm(lstat~age, data = Boston)
+age_lm_fit2 <- lm(lstat~age + I(age^2), data = Boston)
+anova(age_lm_fit1, age_lm_fit2)
+
+medv_lm_fit1 <- lm(lstat~medv, data = Boston)
+medv_lm_fit2 <- lm(lstat~medv + I(medv^2), data = Boston)
+anova(medv_lm_fit1, medv_lm_fit2)
 
 ```
 
