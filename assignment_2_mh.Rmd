@@ -1,0 +1,191 @@
+---
+title: "Assignment 2"
+author: "Marco Hinojosa"
+date: '2022-09-08'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+
+packageList <- c("knitr","Publish","ggplot2","tidyverse","readr", "survival","gtsummary","faraway","MASS","leaps","heatmap3",
+    "ISLR2","glmnet",'e1071','class','pROC',"bdpv")
+for(package in packageList){
+  if(!require(package,character.only = TRUE)){
+    install.packages(package);require(package,character.only = TRUE);}
+    }
+
+```
+Chapter 4 
+13A 
+
+This question should be answered using the Weekly data set, which is part of the ISLR2 
+package. This data is similar in nature to the Smarket data from this chapter’s lab, 
+except that it contains 1, 089 weekly returns for 21 years, from the beginning of 1990 to 
+the end of 2010. 
+
+```{r}
+data(Weekly)
+```
+
+
+(a) Produce some numerical and graphical summaries of the Weekly data. Do there 
+appear to be any patterns? 
+
+```{r}
+head(Weekly)
+
+table(Weekly$Year)
+```
+
+
+
+(b) Use the full data set to perform a logistic regression with Direction as the response and the five lag variables plus Volume as predictors. Use the summary function to print 
+the results. 
+
+Do any of the predictors appear to be statistically significant? If so, which 
+ones? 
+
+```{r}
+
+glmfit <- glm(Direction ~ Lag1 + Volume, data=Weekly, family = 'binomial')
+
+glmfit %>% tbl_regression(exponentiate = TRUE)
+
+```
+
+
+(c) Compute the confusion matrix and overall fraction of correct predictions. Explain what the confusion matrix is telling you about the types of mistakes made by logistic regression.
+
+```{r}
+
+Weekly$probUp <- predict(glmfit,type='response')
+
+hist(Weekly$probUp)
+
+table(Weekly$Direction)
+
+ggplot(Weekly,aes(Direction,probUp))+geom_boxplot()
+
+```
+
+
+ 
+(d) Now fit the logistic regression model using a training data period from 1990 to 2008, with Lag1 as the only predictor. Compute the confusion matrix and the overall fraction of  correct predictions for the held out data (that is, the data from 2009 and 2010). 
+
+```{r}
+
+glmFit2008 <- glm(Direction ~ Volume, data=subset(Weekly,Year<=2008), family = 'binomial')
+
+Weekly$glmPred2008 <- predict(glmFit2008,newdata = Weekly)
+
+
+```
+
+
+
+(e) Repeat (d) using LDA. 
+
+```{r}
+
+trainingSet <- subset(Weekly,Year<=2008)
+
+testSet <- subset(Weekly,Year>2008)
+
+ldaFit2008 <- lda(Direction ~ Volume,data= trainingSet )
+
+predLda2008 <- predict(ldaFit2008,newdata = Weekly)
+
+head(predLda2008$posterior)
+
+```
+
+
+
+(f) Repeat (d) using QDA. 
+
+
+
+```{r}
+ldaFit2008 <- lda(Direction ~ Volume, data=trainingSet)
+
+predLda2008 <- predict(ldaFit2008,newdata = Weekly)
+
+
+```
+
+(g) Repeat (d) using KNN with K = 1. 
+
+```{r}
+
+trainingSet.X <- subset(trainingSet,select=c("Lag1","Lag2","Volume"))
+
+trainingSet.Y <- trainingSet$Direction
+
+testSet.X <- subset(testSet,select=c("Lag1","Lag2","Volume"))
+
+knnFit <- knn(trainingSet.X,testSet.X,trainingSet.Y,k=2,prob = TRUE)
+
+table(knnFit,testSet$Direction) %>% addmargins()
+
+```
+
+
+
+(h) Repeat (d) using naive Bayes. 
+
+
+```{r}
+
+nb2008 <- naiveBayes(Direction ~ Volume, data=trainingSet)
+
+preNb2008 <- predict(ldaFit2008,newdata = testSet)$class
+
+mean(preNb2008==testSet$Direction)
+
+```
+
+
+
+(i) Which of these methods appears to provide the best results on this data?
+
+
+# Let's graph the AUC
+
+```{r}
+
+
+ldaFit2008 <- lda(Direction ~ Volume,data= trainingSet )
+
+predLda2008 <- predict(ldaFit2008,newdata = testSet)
+
+
+Ytrue <- 1*(testSet$Direction=='Up')
+pred <- predLda2008$posterior[,2]
+rocPlot <- roc(Ytrue ~pred) 
+auc<- rocPlot$auc
+
+plot(rocPlot)
+title(paste("AUC",round(auc,3)))
+
+
+
+```
+
+# Let's examine the confusion matrix
+
+```{r}
+
+confusionMatrix <- matrix(table(knnFit,testSet$Direction),2,2)
+
+rownames(confusionMatrix) <- NULL
+colnames(confusionMatrix) <- NULL
+
+
+bdpv::BDtest(confusionMatrix, pr=0.1, conf.level = 0.95)
+```

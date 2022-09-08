@@ -360,20 +360,18 @@ Create a plot displaying the univariate regression coefficients from (a) on the 
 model is shown on the x-axis, and its coefficient estimate in the multiple linear regression model is shown on the y-axis.
 
 ```{r}
-coef_multi <- data.frame(coef(lm_multi), check.rows = T, check.names = T, stringsAsFactors = T) 
-coef_multi <- dplyr::filter(coef_multi, coef.lm_multi. < 35)
-coef_multi <- dplyr::mutate(coef_multi, coef.lm_multi. = round(coef.lm_multi., digits = 4))
+coef_multi <- data.frame(coef(lm_multi)) 
+coef_multi$var <- rownames(coef_multi) 
 
-coef_simple <- data.frame(apply(Boston, 2, function(vv) coef(lm(lstat ~ vv, data = Boston))))
-coef_simple <- data.frame(t(coef_simple))
-coef_simple <- dplyr::select(coef_simple, vv)
-coef_simple <- dplyr::mutate(coef_simple, vv = round(vv, digits = 4))
-coef_simple <- dplyr::filter(coef_simple, vv != 1.0000)
-coef_df <- bind_cols(coef_multi, coef_simple)
+coef_simple <- data.frame(simplecoef = apply(Boston, 2, function(vv) coef(lm(lstat ~ vv, data = Boston))[2]))
+coef_simple$var <- rownames(coef_simple)
+coef_df <- merge(coef_multi,coef_simple)
 
-ggplot(data = coef_df, aes(x=vv, y=coef.lm_multi.)) + geom_point()+ labs(title = "simple vs multivariate linear regression coefficients", y="multivariate coefficients", x="simple coefficients") 
+ggplot(data = coef_df, aes(x=simplecoef, y=coef.lm_multi., label = var)) + geom_point()+ 
+  ggrepel::geom_text_repel(max.overlaps = 20) + 
+  labs(title = "simple vs multivariate linear regression coefficients", y="multivariate coefficients", x="simple coefficients") 
 
-
+cor(Boston)
 
 ```
 
