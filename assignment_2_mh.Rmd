@@ -1,7 +1,7 @@
 ---
 title: "Assignment 2"
 author: "Marco Hinojosa"
-date: '2022-09-08'
+date: '2022-10-01'
 output: html_document
 ---
 
@@ -26,7 +26,7 @@ Chapter 4
 
 This question should be answered using the Weekly data set, which is part of the ISLR2 
 package. This data is similar in nature to the Smarket data from this chapter’s lab, 
-except that it contains 1, 089 weekly returns for 21 years, from the beginning of 1990 to 
+except that it contains 1,089 weekly returns for 21 years, from the beginning of 1990 to 
 the end of 2010. 
 
 ```{r}
@@ -36,13 +36,21 @@ data(Weekly)
 
 (a) Produce some numerical and graphical summaries of the Weekly data. Do there 
 appear to be any patterns? 
+**There is some correlation with year and volume, otherwise not much else is apparent.** 
 
 ```{r}
 head(Weekly)
 
 table(Weekly$Year)
-```
 
+summary(Weekly)
+
+# correlations between the predictors using cor() and use [,-9] to drop the 9th column (direction) 
+# since it is not numerical can not be used by cor(). 
+cor(Weekly[,-9])
+
+
+```
 
 
 (b) Use the full data set to perform a logistic regression with Direction as the response and the five lag variables plus Volume as predictors. Use the summary function to print 
@@ -50,21 +58,41 @@ the results.
 
 Do any of the predictors appear to be statistically significant? If so, which 
 ones? 
+**Lag2 p value < 0.05 appears to be significant**
 
 ```{r}
 
-glmfit <- glm(Direction ~ Lag1 + Volume, data=Weekly, family = 'binomial')
+glmfit <- glm(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data=Weekly, family = 'binomial')
+summary(glmfit) 
 
+# Alternative to above: using gtsummary package function tbl_regression can display some of the summary() results
+# in a cleaner format.
 glmfit %>% tbl_regression(exponentiate = TRUE)
 
 ```
 
 
-(c) Compute the confusion matrix and overall fraction of correct predictions. Explain what the confusion matrix is telling you about the types of mistakes made by logistic regression.
+(c) Compute the confusion matrix and overall fraction of correct predictions. Explain what the confusion matrix is telling you about the types of mistakes made by logistic regression. 
+**The model is not any better than just uniformed prediction or guess as accuracy is 0.561 and uniformed accuracy would be 0.555.** 
 
 ```{r}
+# add a column to the Weekly data with the predicted probability of it stock market going up using the above made model "glmfit". Will call this colum glm_prob_up. The type="response" option tells R to output probabilities of the form P(Y = 1|X), as opposed to other information such as the logit.
+Weekly$glm_prob_up <- predict(glmfit,type='response')
 
-Weekly$probUp <- predict(glmfit,type='response')
+# to be able to compare the models expected marked direction against the observed marked direction
+# in the data set column direction will add another colum called glm_pred and populate it with either up/down string based upon the probabilities just added above. Will use the case_when() to fill this in with "Up" when the probability is greater thanor equal to 0.5 and otherwise just fill in "Down"
+Weekly$glm_pred <- case_when(
+  Weekly$glm_prob_up >= 0.5 ~ "Up",
+  TRUE ~ "Down"
+)
+
+#now to make the confusion matrix will use base R function table() with the two columns of interest our predicted direction in glm_pred and the observed or true direction in Direction. 
+table(Weekly$glm_pred, Weekly$Direction)
+
+# alternatively could use caret package confusionMatrix().  Note that I had to add in the
+# as.factor() when calling the glm_pred column because as filled in above it was designated a 
+# string not automatically recognized as a factor.  
+caret::confusionMatrix(data = as.factor(Weekly$glm_pred), reference = Weekly$Direction)
 
 hist(Weekly$probUp)
 
@@ -79,11 +107,24 @@ ggplot(Weekly,aes(Direction,probUp))+geom_boxplot()
 (d) Now fit the logistic regression model using a training data period from 1990 to 2008, with Lag1 as the only predictor. Compute the confusion matrix and the overall fraction of  correct predictions for the held out data (that is, the data from 2009 and 2010). 
 
 ```{r}
+#create the model with a subset of the data as requested
+glmFit2008 <- glm(Direction ~ Lag1, data=subset(Weekly,Year<=2008), family = 'binomial')
 
-glmFit2008 <- glm(Direction ~ Volume, data=subset(Weekly,Year<=2008), family = 'binomial')
+#add predicted probabilities of market going up based on the new model above
+Weekly$glm_prob_2008 <- predict(glmFit2008,newdata = Weekly)
 
-Weekly$glmPred2008 <- predict(glmFit2008,newdata = Weekly)
+#explained in section above
+Weekly$glm_pred_2008 <- as.factor(case_when(
+  Weekly$glm_prob_2008 >= 0.5 ~ "Up",
+  TRUE ~ "Down"
+))
 
+#subset the held out data year > 2008. 
+Weekly_9_10 <- Weekly %>% 
+  filter(Year > 2008)
+
+#explained in section above
+caret::confusionMatrix(data = Weekly_9_10$glm_pred_2008, reference = Weekly_9_10$Direction)
 
 ```
 

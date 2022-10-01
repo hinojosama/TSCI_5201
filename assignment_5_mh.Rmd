@@ -1,0 +1,141 @@
+---
+title: "Non-linear Model fits"
+author: "Marco Hinojosa"
+date: "2022-09-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+
+```{r,echo=TRUE,warning=FALSE,message=FALSE}
+packageList <- c("knitr","Publish","ggplot2","ISLR2","tidyverse","readr", "survival","gtsummary","faraway","MASS","leaps","heatmap3",'gam','akima','plotly')
+
+for(package in packageList){
+  if(!require(package,character.only = TRUE)){
+    install.packages(package,repos = 'http://cran.rstudio.com');require(package,character.only = TRUE);}
+    }
+
+```
+
+
+# Read Framingham Dataset
+
+# Q1: Is there nonlinearity in sbp vs age?
+
+```{r}
+hearts <- read_csv('fghm_heart_study_mortality_2018.csv')
+
+ggplot(hearts,aes(age,sbp)) + geom_point() + geom_smooth(method='lm')+geom_smooth(color='red')
+
+```
+# Try polynomial model
+
+# Q2: What is the lmPoly object created below?
+# Q3: Does a polynomial model improve the fit?
+# Q4: Which degree polynomial of age gives the best fit and why?
+
+```{r}
+
+lmLinear <- lm(sbp~age,data=hearts)
+
+# make a 1 to 10 object
+dfs <- 1:10
+
+
+
+# use lapply function to make a series of models using with increasing degree of freedom
+# specified by k being filled in with the numbers 1:20 above
+lmPoly <- lapply(dfs,function(k){lm(sbp~poly(age,k),data=hearts)})
+
+# use lapply again to generate the AIC (aikake information criterion) and for ease of 
+#plotting convert back from list to a vector using unlist()
+aics <- lapply(lmPoly,AIC) %>% unlist()
+
+# plot the degrees of freedom from dfs above on x, the aics from above on y. Type b 
+# for both points and lines to be plotted
+plot(dfs,aics,type='b')
+
+
+```
+
+# Q5: Are the columns of orthogonal poly(age,5) correlated?
+# Q6: How does this compare to the raw age polynomial?
+
+```{r}
+#poly() compute orthogonal polynomials they scale these and transform the power by each column in the results below. Below we see columns with the power and ex in the 3rd (age to 3rd power) it gives the correlation in the regressed or residual difference between the age to 2nd power, and this helps make the models more stable when we account for the coliniearity
+polyOut <- poly(hearts$age,5)
+
+colMeans(polyOut)
+
+apply(polyOut,2,sd)
+
+cor(polyOut)
+
+cor(poly(hearts$age,5,raw=TRUE))
+
+```
+
+
+# Try fitting Generalized Additive Models such as smoothing spline
+
+# Q7: Examine summary of linear and nonlinear fits. Does nonlinear model improve AIC?
+
+# Q8: Which predictor has nonlinear effects and why?
+
+```{r}
+
+glmFit <- gam(sbp ~ age + bmi,data=hearts)
+
+glmFit %>% summary()
+
+#s is spline(gam::s).  could be substitute bs (B-spline Basis for polynomial splines)
+glmFitS3 <- gam(sbp ~ s(age,3) + s(bmi,3) ,data=hearts)
+
+glmFitS3 %>% summary()
+
+dfs <- 0:6
+
+aicsBMI <- lapply(dfs, function(k){gam(sbp ~ s(age,3) + s(bmi,k) ,data=hearts)}) %>% lapply(AIC) %>% unlist()
+
+aicsAge <- lapply(dfs, function(k){gam(sbp ~ s(age,k) + s(bmi,1) ,data=hearts)}) %>% lapply(AIC) %>% unlist()
+
+
+plot(dfs,aicsBMI-min(aicsBMI))
+
+plot(dfs,aicsAge-min(aicsAge))
+
+```
+
+# Q9: How nonlinear do age and bmi effects without gender look?
+# Q10: Can you make sense of the gender effect?
+
+```{r}
+
+noMiss <- na.exclude(hearts)
+
+glmFitS3 <- gam(sbp ~ s(age,3) * s(bmi,3)  ,data=noMiss)
+
+noMiss$sbpPred <- predict(glmFitS3)
+
+ggplot(noMiss,aes(age,bmi,color=sbpPred)) + geom_point()
+
+
+plot_ly(x=noMiss$age, y=noMiss$bmi, z=noMiss$sbp, type="scatter3d", mode="markers", color=noMiss$sbp)
+
+plot_ly(x=noMiss$age, y=noMiss$bmi, z=noMiss$sbpPred, type="scatter3d", mode="markers", color=noMiss$sbp)
+
+glmFitS3sex <- gam(sbp ~ s(age,3) * sex + bmi  ,data=noMiss)
+
+
+noMiss$sbpPred <- predict(glmFitS3sex)
+
+plot_ly(x=noMiss$age, y=noMiss$bmi, z=noMiss$sbpPred, type="scatter3d", mode="markers", color=noMiss$sex)
+
+
+```
+

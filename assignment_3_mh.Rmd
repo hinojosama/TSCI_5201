@@ -1,0 +1,273 @@
+---
+title: "Model Tuning, Training, and Cross Validation"
+author: "Marco Hinojosa"
+date: "2022-09-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+
+```{r,echo=TRUE,warning=FALSE,message=FALSE}
+packageList <- c("knitr","Publish","ggplot2","tidyverse","readr", "survival","gtsummary","faraway","MASS","leaps","heatmap3","ISLR2","caTools",'caret',
+        'rpart.plot','ranger','xgbtree')
+
+#caret package does cross validation and model fitting
+
+for(package in packageList){
+  if(!require(package,character.only = TRUE)){
+    install.packages(package,repos = 'http://cran.rstudio.com');require(package,character.only = TRUE);}
+    }
+
+```
+
+
+# Train Test Split on both Boston Dataset
+
+
+# Q1: How many training and test samples are there?
+
+```{r}
+
+train_test_split <- function(df) {
+  set.seed(42)
+  sample = sample.split(df[,1], SplitRatio = 0.8)  # Sample 80% of data will be True 
+  train = subset(df, sample == TRUE)
+  test  = subset(df, sample == FALSE)
+  return (list(train, test))
+}
+
+
+# To Simplify, we are going to make Boston a two classification
+# problem
+
+Boston2 <- Boston
+
+Boston2$target <- ifelse(Boston2$crim > median(Boston2$crim),1,0) %>% as.factor()
+
+Boston2$crim <- NULL
+
+data(Boston)
+
+# Crime as continuous
+cts_train <- train_test_split(Boston)[[1]]
+cts_test <- train_test_split(Boston)[[2]]
+
+# Crime as binary
+bin_train <- train_test_split(Boston2)[[1]]
+bin_test <- train_test_split(Boston2)[[2]]
+
+```
+
+
+# Training a linear model
+
+# Q2: What is the most significant variable in the model?
+
+```{r}
+
+# Training a Linear Model
+
+lm_model <- train(crim ~ ., 
+      data = cts_train, 
+      method = "lm")
+
+summary(lm_model)
+
+```
+
+# Train logistic Model
+
+# Q3: What is the most significant variable in the model?
+# Q4: Is there overfitting?
+
+```{r}
+# the carat package has a function called train which will be used her to make a 
+# logistic model with Y or response (target which was created above as either one or 
+# zero if above or below median crime rate) and it makes the model with all the other 
+# variables or columns in the data set (bin_train) by using the shortcut ~ '.' instead
+# of having to type out those variable names.  Uses the generalized liniar model method b
+# which we can not tune here.
+glm_model <- train(target ~ ., 
+                  data = bin_train, 
+                  method = "glm",
+                  family = "binomial")
+
+summary(glm_model)
+
+hist(predict(glm_model,bin_train,type = 'prob')[,2])
+
+#this plot highlights that some portion of the neighborhoods are predicted to have
+# either zero percent or one hundred percent chance of crime. THis is indicative of
+# OVER-fitting. 
+plot(sort(predict(glm_model,bin_train,type = 'prob')[,2]))
+
+
+```
+
+
+# Train a decision tree
+
+```{r}
+
+d.tree <- train(crim ~., 
+                  data = cts_train, 
+                  method = "rpart")
+
+library(rpart.plot)
+rpart.plot(d.tree$finalModel)
+
+```
+
+
+
+```{r}
+
+# Training a Random Forest
+r.forest <- train(crim ~ ., 
+                  data = cts_train, 
+                  method = "ranger")
+
+r.forest
+
+
+```
+
+
+
+
+
+
+```{r}
+# Training a k-nearest neighbor
+knn <- train(crim ~ ., 
+                  data = cts_train, 
+                  method = "knn")
+```
+
+
+
+# Try a random forest model
+# Q5a: What parameters give the best fit?
+# Q5b: Put these variables in the model training function.
+
+
+```{r}
+# Define cross validation function
+
+# could add argument after number called repeats and for example
+# ctrl <- trainControl(method="repeatedcv", number=10, repeat = 7) would do
+# the CV process with 10 folds seven times to further try to average out or
+# settle out the optimal. note the change in method to repeatedcv too.
+ctrl <- trainControl(method="cv", number=10)
+
+#
+r.forest.hyperparam <- train(crim ~ ., 
+                           data = cts_train,
+                           trControl = ctrl,
+                           metric = "Rsquared",
+                           method = "ranger",
+                           tuneGrid = data.frame(
+                             mtry = c(2, 3, 4),
+                             min.node.size = c(2, 4, 10),
+                             splitrule = c('variance')))
+
+r.forest.hyperparam
+
+
+rforestTuned <- train(crim ~ ., 
+                           data = cts_train,
+                           trControl = ctrl,
+                           metric = "Rsquared",
+                           method = "ranger",
+                           tuneGrid = data.frame(
+                             mtry = c(2 ),
+                             min.node.size = c(2),
+                             splitrule = c('variance')))
+
+
+
+```
+
+# Compare linear vs random forest model for continuous crime
+
+# Q6: Which performed better tuned RF or linear model? Justify your answer.
+
+
+```{r}
+
+models <- list(rf= rforestTuned,lm=lm_model )
+
+predictions <- predict(models,cts_test)
+
+comparison <- data.frame(predictions) %>% mutate(target=cts_test$crim)
+
+comparison  %>% ggplot(aes(rf,lm))+geom_point()
+
+comparison  %>% ggplot(aes(rf,target))+geom_point()+geom_abline(slope = 1,intercept=0)
+
+
+comparison  %>% ggplot(aes(lm,target))+geom_point()+geom_abline(slope = 1,intercept=0)
+
+comparison %>% summarise(rferror = RMSE(rf,target,TRUE),lmerror = RMSE(lm,target,TRUE) )
+
+
+
+```
+
+
+# Binary CV
+
+# Q8: Which K gives best KNN prediction?
+
+```{r}
+
+bin_train$target <- as.factor(bin_train$target)
+
+d.knn.kfold <- train(target ~ ., 
+                data = bin_train,
+                trControl = ctrl,
+                method = "knn",
+                tuneGrid = data.frame(
+                             k = c(1,2,3,5,7,9)))
+
+d.knn.kfold 
+
+```
+
+
+# Q9: Fit with best tuning parameter
+
+```{r}
+
+knn.kfoldTuned <- train(target~.,data = bin_train,method='knn',tuneGrid=data.frame(k=100))
+
+bin_test$pred <- predict(knn.kfoldTuned,bin_test)
+
+bin_test$target <- as.factor(bin_test$target)
+
+confusionMatrix(data = bin_test$pred, reference = bin_test$target,positive = '1')
+
+```
+
+
+# Q10: How does accuracy compare to Logistic Regression?
+
+```{r}
+knn.kfoldTuned <- glm_model <- train(target ~ ., 
+                  data = bin_train, 
+                  method = "glm",
+                  family = "binomial")
+
+bin_test$pred <- predict(knn.kfoldTuned,bin_test)
+
+bin_test$target <- as.factor(bin_test$target)
+
+confusionMatrix(data = bin_test$pred, reference = bin_test$target,positive = '1')
+
+```
+

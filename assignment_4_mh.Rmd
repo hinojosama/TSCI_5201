@@ -1,0 +1,266 @@
+---
+title: "Model Tuning, Training, and Cross Validation"
+author: "J. Gelfond"
+date: "2022-09-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+
+```{r,echo=TRUE,warning=FALSE,message=FALSE}
+packageList <- c("knitr","Publish","ggplot2","ISLR2","tidyverse","readr", "survival","gtsummary","faraway","MASS","leaps","heatmap3","caTools",'caret',
+        'rpart.plot','ranger','xgbtree',
+        'glmnet')
+#above the package xgbtree the gb is gradient boosting.  Boosting is an ensemble method
+# that is computationally intesive.  Sequentially refines model and reapplies to a modified 
+# (but not bootstrapped) version of the data, and repeats until optimized. See Chapter 8 in ISLR
+
+for(package in packageList){
+  if(!require(package,character.only = TRUE)){
+    install.packages(package,repos = 'http://cran.rstudio.com');require(package,character.only = TRUE);}
+    }
+
+```
+
+
+# Train Test Split on both Boston Dataset
+
+
+```{r}
+
+train_test_split <- function(df) {
+  set.seed(42)
+  sample = sample.split(df[,1], SplitRatio = 0.5)  # Sample 80% of data
+  train = subset(df, sample == TRUE)
+  test  = subset(df, sample == FALSE)
+  return (list(train, test))
+}
+
+
+# To Simplify, we are going to make iris a two classification
+# problem
+
+if(length(Boston)>13){
+
+Boston <- dplyr::select(Boston,-black)
+}
+
+Boston2 <-Boston 
+
+Boston2$target <- ifelse(Boston2$crim > median(Boston2$crim),1,0) %>% as.factor()
+
+Boston2$crim <- NULL
+
+data(Boston)
+
+# Crime as continuous
+cts_train <- train_test_split(Boston)[[1]]
+cts_test <- train_test_split(Boston)[[2]]
+
+# Crime as binary
+bin_train <- train_test_split(Boston2)[[1]]
+bin_test <- train_test_split(Boston2)[[2]]
+
+```
+
+
+# Training a linear LASSO model
+
+# Q1: How many folds are used for cross validation?
+# Q2: What is the difference between trainingMatrix2,3 and trainingMatrix?
+# Q3: How do trainingMatrix3 and trainingMatrix4 differ?
+
+```{r}
+
+
+trainingMatrix <- bin_train[,-ncol(bin_train)] %>% as.matrix()
+
+#brute force add a quadratic term by binding the columns using cbind
+trainingMatrix2 <- cbind(trainingMatrix,trainingMatrix*trainingMatrix)
+
+#add a cubed term
+trainingMatrix3 <- cbind(trainingMatrix2,trainingMatrix*trainingMatrix*trainingMatrix)
+
+#introduce scaling to help reduce some of the co-liniarity that occurs when the terms are 
+# squared "bigger numbers squared makes bigger numbers"
+trainingMatrix34 <- apply(trainingMatrix3,2,scale,center=TRUE)
+
+# now cross validate cv using a generalized linear model glm and an elastic net
+# which can use lasso or ridge regression or elements of both.  Here we specify 
+# the desired output as area under the curve auc. 
+cvValidationLasso <- cv.glmnet(trainingMatrix,as.numeric(bin_train$target)-1,type.measure = 'auc',nfolds=10,family='binomial')
+
+
+cvValidationLassoQuad <- cv.glmnet(trainingMatrix2,as.numeric(bin_train$target)-1,type.measure = 'auc',nfolds=10,family='binomial')
+
+cvValidationLassoCubic <- cv.glmnet(trainingMatrix3,as.numeric(bin_train$target)-1,type.measure = 'auc',nfolds=10,family='binomial')
+
+
+print(max(abs(colMeans(trainingMatrix34)))) # maximum absolute value
+
+print(apply(trainingMatrix34,2,sd)) # Compute standard deviations of columns
+
+
+```
+
+# Compare linear vs quadratic fits.
+
+# Linear fit:
+
+```{r}
+
+plot(cvValidationLasso)
+
+cvValidationLasso$lambda.min
+
+cvValidationLasso$lambda.1se
+
+```
+
+# Quadratic and Cubic fits:
+
+# Q5: Which fit is performing better (linear, quadratic, cubic)?
+
+
+```{r}
+
+
+plot(cvValidationLassoQuad)
+
+max(cvValidationLasso$cvm)
+
+max(cvValidationLassoQuad$cvm)
+
+
+plot(cvValidationLassoCubic)
+
+max(cvValidationLassoCubic$cvm)
+
+print("Standard Error of AUC")
+
+cvValidationLassoCubic$cvsd[which.min(cvValidationLassoCubic$cvm)]
+
+
+```
+
+
+# Q6: Tune the random forest model below.
+
+```{r}
+
+#unlike the lasso above where it defaults to linear and we had to add in non linear term
+# by adding squared, cubed terms, random forest does not have this problem and even includes
+# interaction between the predictors.
+
+set.seed(2022)
+
+
+ctrl <- trainControl(method="repeatedcv", number=10,repeats=7)
+
+r.forest.hyperparam <- train(target ~ ., 
+                           data = bin_train,
+                           trControl = ctrl,
+                           metric = "Accuracy",
+                           method = "ranger",
+                           tuneGrid = data.frame(
+                             mtry = c(2, 3, 4),
+                             min.node.size = c(2, 4, 9),
+                             splitrule = c('gini')))
+
+r.forest.hyperparam
+
+# of note accuracy can be difficult to interpret in highly imbalanced rates of 
+# the response think prediction of lottery winner  or ppv of flu-test in non-flu 
+# season. 
+rforestTuned <- train(target ~ ., 
+                           data = bin_train,
+                           trControl = ctrl,
+                           metric = "Accuracy",
+                           method = "ranger",
+                           tuneGrid = data.frame(
+                             mtry = c(4 ),
+                             min.node.size = c(9),
+                             splitrule = c('gini')))
+```
+
+# Q7: Which value of lambda works the best for Lasso model below?
+# Q8: Tune the lasso model to get lasso.tuned.
+
+```{r}
+
+# alpha =0 ridge regression, 1 lasso, in between is elastic net. 
+tuningGrid=expand.grid(
+              alpha=1,
+              lambda=exp(seq(-20,-0, length=100)))
+
+lasso.hyperparam <-  train(target ~ ., 
+                           data = bin_train,
+                           trControl = ctrl,
+                           metric = "Accuracy",
+                           method = "glmnet",
+                           tuneGrid =tuningGrid, family='binomial')
+
+
+#Side note if you increased the lambda exp to -100 making it very very small this would 
+#turn it into a linear model approximately, and would reduce the accuracy of 
+#the model.
+lasso.tuned <-  train(target ~ ., 
+                           data = bin_train,
+                           trControl = ctrl,
+                           metric = "Accuracy",
+                           method = "glmnet",
+                           tuneGrid =data.frame(lambda=exp(-1),alpha=1), family='binomial')
+
+```
+
+
+# Q9: How was performance of RF?
+
+
+```{r}
+
+# predict is the caret function
+bin_test$predRF <- predict(rforestTuned,bin_test)
+
+bin_test$target <- as.factor(bin_test$target)
+
+confusionMatrix(data = bin_test$predRF, reference = bin_test$target,positive = '1')
+
+
+```
+
+# Q10: How does lasso compare to RF?
+
+```{r}
+
+bin_test$predLasso <- predict(lasso.tuned,bin_test)
+
+bin_test$target <- as.factor(bin_test$target)
+
+confusionMatrix(data = bin_test$predLasso, reference = bin_test$target,positive = '1')
+
+bin_test$RFCorrect <- ifelse(bin_test$target==bin_test$predRF,1,0)
+bin_test$LassoCorrect <- ifelse(bin_test$target==bin_test$predLasso,1,0)
+
+
+
+resamp <- resamples(list(RF=rforestTuned,lasso=lasso.tuned))
+
+diff(resamp)
+
+compare_models(rforestTuned,lasso.tuned)
+
+# use this test for binary correlated outcomes.  "did random forest get it correct 
+# y/n, did lasso get it correct y/n correlated for each outcome." Unlike kappa (concordance)
+# in mcnemar test if discordant it will be significant.  
+mcnemar.test(bin_test$RFCorrect,bin_test$LassoCorrect)
+
+with(bin_test,table(RFCorrect,LassoCorrect))
+
+```
+
