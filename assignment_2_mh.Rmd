@@ -134,15 +134,28 @@ caret::confusionMatrix(data = Weekly_9_10$glm_pred_2008, reference = Weekly_9_10
 
 ```{r}
 
-trainingSet <- subset(Weekly,Year<=2008)
+training_set <- subset(Weekly,Year<=2008)
 
-testSet <- subset(Weekly,Year>2008)
+test_set <- subset(Weekly,Year>2008)
 
-ldaFit2008 <- lda(Direction ~ Volume,data= trainingSet )
+lda_fit_2008 <- lda(Direction ~ Lag1,data= training_set )
 
-predLda2008 <- predict(ldaFit2008,newdata = Weekly)
+#Of note changed the newdata in this line from Weekly to test_set. At this point we want to 
+#make a prediction of the probility of up or down direction of the market in the years in the test
+# set 09/10.  We want to make that prediction using the model we fit on the training set. That #model is called lda_fit_2008. It would work just as well if we left newdata=Weekly as originally #written however this creeates predictions for the whole dataset including the training years which #we do not care about for the purpose of this question.  If we do it that way the length of the #test set and the length of the prediction class vector are different and will be a problem for our #table or confusionMatrix functions below. By setting newdata as test_set this is avoided.
+lda_2008 <- predict(lda_fit_2008,newdata = test_set)
 
-head(predLda2008$posterior)
+#shows that the lda_2008 object we just created has three elements whose names are 
+#class, posterior, and x. The first element class is the LDA's prediction about the direction 
+# the stock market will go.  The second element, posterior, is a matrix whose kth column contains #the posterior probability that the corresponding observation belongs to the kth class, computed 
+#from bayes theorem. Finally, x contains the linear discriminants.
+names(lda_2008)
+
+head(lda_2008$posterior)
+
+table(lda_2008$class, test_set$Direction)
+
+caret::confusionMatrix(data = lda_2008$class, reference = test_set$Direction)
 
 ```
 
@@ -153,26 +166,26 @@ head(predLda2008$posterior)
 
 
 ```{r}
-ldaFit2008 <- lda(Direction ~ Volume, data=trainingSet)
+qda_fit_2008 <- qda(Direction ~ Lag1, data = training_set)
 
-predLda2008 <- predict(ldaFit2008,newdata = Weekly)
+qda_2008 <- predict(qda_fit_2008, newdata = test_set)
 
-
+caret::confusionMatrix(data = qda_2008$class, reference = test_set$Direction)
 ```
 
 (g) Repeat (d) using KNN with K = 1. 
 
 ```{r}
 
-trainingSet.X <- subset(trainingSet,select=c("Lag1","Lag2","Volume"))
+trainingSet.X <- subset(training_set,select=c("Lag1"))
 
-trainingSet.Y <- trainingSet$Direction
+trainingSet.Y <- training_set$Direction
 
-testSet.X <- subset(testSet,select=c("Lag1","Lag2","Volume"))
+testSet.X <- subset(test_set,select=c("Lag1"))
 
-knnFit <- knn(trainingSet.X,testSet.X,trainingSet.Y,k=2,prob = TRUE)
+knnFit <- knn(trainingSet.X,testSet.X,trainingSet.Y,k=1,prob = TRUE)
 
-table(knnFit,testSet$Direction) %>% addmargins()
+table(knnFit,test_set$Direction) %>% addmargins()
 
 ```
 
@@ -183,11 +196,11 @@ table(knnFit,testSet$Direction) %>% addmargins()
 
 ```{r}
 
-nb2008 <- naiveBayes(Direction ~ Volume, data=trainingSet)
+nb2008 <- naiveBayes(Direction ~ Lag1, data=training_set)
 
-preNb2008 <- predict(ldaFit2008,newdata = testSet)$class
+preNb2008 <- predict(lda_fit_2008,newdata = test_set)$class
 
-mean(preNb2008==testSet$Direction)
+mean(preNb2008==test_set$Direction)
 
 ```
 
@@ -201,12 +214,12 @@ mean(preNb2008==testSet$Direction)
 ```{r}
 
 
-ldaFit2008 <- lda(Direction ~ Volume,data= trainingSet )
+lda_fit_2008 <- lda(Direction ~ Lag1, data = training_set)
 
-predLda2008 <- predict(ldaFit2008,newdata = testSet)
+predLda2008 <- predict(lda_fit_2008,newdata = test_set)
 
 
-Ytrue <- 1*(testSet$Direction=='Up')
+Ytrue <- 1*(test_set$Direction=='Up')
 pred <- predLda2008$posterior[,2]
 rocPlot <- roc(Ytrue ~pred) 
 auc<- rocPlot$auc
@@ -222,11 +235,11 @@ title(paste("AUC",round(auc,3)))
 
 ```{r}
 
-confusionMatrix <- matrix(table(knnFit,testSet$Direction),2,2)
+confusion_matrix <- matrix(table(knnFit,test_set$Direction),2,2)
 
-rownames(confusionMatrix) <- NULL
-colnames(confusionMatrix) <- NULL
+rownames(confusion_matrix) <- NULL
+colnames(confusion_matrix) <- NULL
 
 
-bdpv::BDtest(confusionMatrix, pr=0.1, conf.level = 0.95)
+bdpv::BDtest(confusion_matrix, pr=0.1, conf.level = 0.95)
 ```
