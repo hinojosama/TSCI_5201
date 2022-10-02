@@ -94,11 +94,11 @@ table(Weekly$glm_pred, Weekly$Direction)
 # string not automatically recognized as a factor.  
 caret::confusionMatrix(data = as.factor(Weekly$glm_pred), reference = Weekly$Direction)
 
-hist(Weekly$probUp)
+hist(Weekly$glm_prob_up)
 
 table(Weekly$Direction)
 
-ggplot(Weekly,aes(Direction,probUp))+geom_boxplot()
+ggplot(Weekly,aes(Direction,glm_prob_up))+geom_boxplot()
 
 ```
 
